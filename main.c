@@ -7,7 +7,6 @@
 
 #define BUFFER_SIZE 4096
 
-
 const char* get_file_name(const char *path) {
     const char *name = strrchr(path, '/');
     
@@ -46,31 +45,26 @@ void copy_origin(int src_fd, int dst_fd) {
     }
 }
 
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        fprintf(stderr, "Uso: %s <origen> <destino>\n", argv[0]);
-        return 1;
-    }
-
+int copy_files(const char *src_file, const char *dst_file) {
     struct stat st;
-    if (stat(argv[1], &st) < 0) {
+    if (stat(src_file, &st) < 0) {
         perror("Error al hacer stat del origen");
         return 1;
     }
 
-    int src_fd = open(argv[1], O_RDONLY);
+    int src_fd = open(src_file, O_RDONLY);
     if (src_fd < 0) {
         perror("Error al abrir el origen");
         return 1;
     }
     
     char path_complete[512];
-    if (verify_path(argv[2]) == 1) {
+    if (verify_path(dst_file) == 1) {
 
-        snprintf(path_complete, sizeof(path_complete), "%s/%s", argv[2], get_file_name(argv[1]));
+        snprintf(path_complete, sizeof(path_complete), "%s/%s", dst_file, get_file_name(src_file));
     } 
-    if (verify_path(argv[2]) == 2 || verify_path(argv[2]) == 0) {
-        snprintf(path_complete, sizeof(path_complete), "%s", argv[2]);
+    if (verify_path(dst_file) == 2 || verify_path(dst_file) == 0) {
+        snprintf(path_complete, sizeof(path_complete), "%s", dst_file);
     }
 
     int dst_fd = open(path_complete, O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -108,6 +102,29 @@ int main(int argc, char *argv[]) {
 
     close(src_fd);
     close(dst_fd);
+}
 
+int main(int argc, char *argv[]) {
+    int opt;
+    
+    while((opt = getopt(argc, argv, ":r")) != -1)  
+    {  
+        switch(opt)  
+        {  
+            case 'r':  
+                printf("option: %c\n", opt);  
+                break;  
+            case ':':  
+                printf("option needs a value\n");  
+                break;  
+            case '?':  
+                printf("unknown option: %c\n", optopt);
+                break;  
+        }  
+    }  
+      
+    for(; optind < argc; optind++){     
+        printf("extra arguments: %s\n", argv[optind]);  
+    }   
     return 0;
 }
