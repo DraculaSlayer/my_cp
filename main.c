@@ -2,23 +2,34 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <string.h>
 #include <libgen.h>
 #include <errno.h>
 #include <dirent.h>
 #include <stdbool.h>
+#include <getopt.h>
+#include <pwd.h>
 
 #define BUFFER_SIZE 4096
 
-const char* get_name(const char *path) {
-    char fuck[500];
+const char *get_name_directory(const char *path) {
+    char fuck[512];
 
     strcpy(fuck, path);
     
     char *name = basename(fuck);
 
     return name;
+}
+const char *get_name_file(const char *path) {
+    const char *last_slash = strrchr(path, '/');
+    if (last_slash) {
+        return last_slash + 1;
+    }
+    return path;
 }
 
 int verify_path(const char *path) {
@@ -37,6 +48,14 @@ int verify_path(const char *path) {
     else {
         return 3;
     }
+}
+
+void print_usage(const char *progname) {
+    printf("Uso: %s [OPCIONES] ORIGEN DESTINO\n", progname);
+    printf("Copia archivos o directorios de forma recursiva.\n\n");
+    printf("Opciones:\n");
+    printf("  -h, --help      Muestra esta ayuda y sale\n");
+    printf("  -r, --recursive Modo recursivo");
 }
 
 void watch_bar(int current, int total) {
@@ -59,7 +78,7 @@ void watch_bar(int current, int total) {
     fflush(stdout); 
 }
 
-void copy_origin(int src_fd, int dst_fd, long total_size, long *bytes_copy) {
+int copy_origin(int src_fd, int dst_fd, long total_size, long *bytes_copy) {
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read, bytes_written;
 
@@ -74,39 +93,74 @@ void copy_origin(int src_fd, int dst_fd, long total_size, long *bytes_copy) {
             perror("Error de escritura");
             close(src_fd);
             close(dst_fd);
+            return EXIT_FAILURE;
         }
         *bytes_copy += bytes_written;
         watch_bar(*bytes_copy, total_size);
     }
+
+    return EXIT_SUCCESS;
+}
+
+char *expand_tilde(const char *path) {
+    if (!path) return NULL;
+
+    if (path[0] != '~') {
+        return strdup(path);
+    }
+
+    const char *home = getenv("HOME");
+    if (!home) {
+        struct passwd *pw = getpwuid(getuid());
+        if (pw) {
+            home = pw->pw_dir;
+        } else {
+            return strdup(path);
+        }
+    }
+
+    if (path[1] == '\0') {
+        return strdup(home);
+    }
+
+    if (path[1] == '/') {
+        size_t len = strlen(home) + strlen(path + 1) + 1;
+        char *expanded = malloc(len);
+        if (!expanded) return NULL;
+        snprintf(expanded, len, "%s%s", home, path + 1);
+        return expanded;
+    }
+
+    return strdup(path);
 }
 
 int copy_files(const char *src_file, const char *dst_file) {
     struct stat st;
     if (stat(src_file, &st) < 0) {
         perror("Error al hacer stat del origen");
-        return 1;
+        return EXIT_FAILURE;
     }
 
     int src_fd = open(src_file, O_RDONLY);
     if (src_fd < 0) {
         perror("Error al abrir el origen");
-        return 1;
+        return EXIT_FAILURE;
     }
     
     char path_complete[512];
     if (verify_path(dst_file) == 1) {
 
-        snprintf(path_complete, sizeof(path_complete), "%s/%s", dst_file, get_name(src_file));
+        snprintf(path_complete, sizeof(path_complete), "%s/%s", dst_file, get_name_file(src_file));
     } 
     if (verify_path(dst_file) == 2 || verify_path(dst_file) == 0) {
         snprintf(path_complete, sizeof(path_complete), "%s", dst_file);
     }
-
+    
     int dst_fd = open(path_complete, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (dst_fd < 0) {
         perror("Error al abrir/crear el destino");
         close(src_fd);
-        return 1;
+        return EXIT_FAILURE;
     }
     
     ssize_t ret;
@@ -142,7 +196,7 @@ int copy_files(const char *src_file, const char *dst_file) {
     close(src_fd);
     close(dst_fd);
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 void copy_directory(const char *src_dir, const char *dst_dir) {
@@ -153,7 +207,7 @@ void copy_directory(const char *src_dir, const char *dst_dir) {
     struct stat st_dst;
 
     if (stat(dst_dir, &st_dst) == 0 && S_ISDIR(st_dst.st_mode)) {
-        snprintf(dst_path, sizeof(dst_path), "%s/%s", dst_dir, get_name(src_dir));
+        snprintf(dst_path, sizeof(dst_path), "%s/%s", dst_dir, get_name_directory(src_dir));
     } else {
         snprintf(dst_path, sizeof(dst_path), "%s", dst_dir);
     }
@@ -173,7 +227,7 @@ void copy_directory(const char *src_dir, const char *dst_dir) {
         }
 
         snprintf(src_path, sizeof(src_path), "%s/%s", src_dir, dp->d_name);
-        char item_dst_path[1024];
+        char item_dst_path[1280];
         snprintf(item_dst_path, sizeof(item_dst_path), "%s/%s", dst_path, dp->d_name);
 
         struct stat st_src;
@@ -193,36 +247,48 @@ void copy_directory(const char *src_dir, const char *dst_dir) {
 }
 
 int main(int argc, char *argv[]) {
+
+    static struct option const long_options[] = {
+        {"help", no_argument, NULL, 'h'},
+        {"recursive", no_argument, NULL, 'r'},
+        {NULL,   0,           NULL,  0 }
+    };
+
     int opt;
-    char *path_src[512];
-    char *path_dst[512];
     bool recursive = false;
 
-    while((opt = getopt(argc, argv, ":r")) != -1)  
+    while((opt = getopt_long(argc, argv, ":rh", long_options, NULL)) != -1)  
     {  
         switch(opt)  
         {  
             case 'r':
                 recursive = true;
                 break;
+            case 'h':
+                print_usage("cp");
+                exit(EXIT_SUCCESS);
+                break;
             case '?':  
                 printf("unknown option: %c\n", optopt);
-                return 1;
+                print_usage("cp");
+                return EXIT_FAILURE;
         }  
     }  
 
     if ((argc - optind) >= 2) {
-        char *src = argv[argc - 2];
-        char *dst = argv[argc - 1];
+        char *src = expand_tilde(argv[argc - 2]);
+        char *dst = expand_tilde(argv[argc - 1]);
         
         if (recursive == true) {
             copy_directory(src, dst);
         }else {
             copy_files(src, dst);
         }
+        free(src);
+        free(dst);
     } else {
         fprintf(stderr, "Error: Faltan argumentos (se requieren origen y destino).\n");
-        return 1;
+        return EXIT_FAILURE;
     }
      
     return 0;
