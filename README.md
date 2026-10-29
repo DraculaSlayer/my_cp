@@ -11,17 +11,18 @@ Este proyecto se centra en reescribir el comando **cp** de linux añadiendole me
 ## Tabla de Contenidos
 
 - [Demostración](#-demostración)
+
 - [Características principales](#-características-principales)
-- [Tecnologías utilizadas](#-tecnologías-utilizadas)
+
+- [Cómo lo hice?](#-Cómo lo hice?)
+
 - [Instalación y Configuración](#-instalación-y-configuración)
-- [Uso](#-uso)
-- [Hoja de Ruta (Roadmap)](#-hoja-de-ruta-roadmap)
-- [Contribución](#-contribución)
+
 - [Licencia](#-licencia)
 
 ---
 
-## 📸 Demostración
+## Demostración
 
 ![example](./example/example.gif)
 
@@ -53,4 +54,11 @@ Asegúrate de tener instalado lo siguiente:
    cd my_cp
    make
    sudo make install
+   ---
    ```
+
+---
+
+## 📄 Licencia
+
+Este proyecto está bajo la Licencia **MIT**. Consulta el archivo [LICENSE](LICENSE) para obtener más detalles.
