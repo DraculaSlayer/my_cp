@@ -14,7 +14,7 @@ Este proyecto se centra en reescribir el comando **cp** de linux añadiendole me
 
 - [Características principales](#-características-principales)
 
-- [Cómo lo hice?](#-Cómo lo hice?)
+- [Cómo lo hice?](#-Cómo-lo-hice?)
 
 - [Instalación y Configuración](#-instalación-y-configuración)
 
